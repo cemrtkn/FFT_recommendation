@@ -6,17 +6,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 from tqdm import tqdm
+import h5py
+
 
 
 
 SAMPLING_FREQ = 44100
 FIGURE_WIDTH = 7 
 FIGURE_HEIGHT = 3.5  
+MIN_SAMPLE_LENGTH = 1321967
 
 # Get the current working directory
 current_directory = os.getcwd()
 file_path = os.path.join(current_directory, '..', '..', 'data', 'fma_small.zip')
 extract_directory = os.path.join(current_directory, '..', '..', 'data')
+hdf5_path = os.path.join(extract_directory, 'spectrograms.h5')
+
 
 def visualize_audio(mono_signal):
     # Get time domain representation of the sound pressure waves
@@ -35,12 +40,15 @@ def visualize_audio(mono_signal):
     plt.show()
 
 def visualize_spectrogram(Sxx):
+    # Convert to decibels
+    Sxx_log = 10 * np.log10(Sxx)
     plt.figure(figsize=(FIGURE_WIDTH, FIGURE_HEIGHT))
-    plt.pcolormesh(t, f, Sxx, shading='gouraud', cmap='viridis')
+    plt.pcolormesh(t, f, Sxx_log, shading='gouraud', cmap='viridis')
     plt.ylabel('Frequency [Hz]')
     plt.xlabel('Time [s]')
     plt.colorbar(label='Power/Frequency (dB/Hz)')
     plt.show()
+
 
 def read_zipped_mp3(file):
     # reads binary data and returns mono signal
@@ -55,33 +63,48 @@ def read_zipped_mp3(file):
 
     return s1
 
-
-with zipfile.ZipFile(file_path, 'r') as zip_ref:
-    count = 0
-    min_length = 2000000
-    mp3_files = [file_name for file_name in zip_ref.namelist() if file_name.endswith('.mp3')]
-
-    for file_name in tqdm(mp3_files[4470:], desc="Processing MP3 files"):
-        try:
-            if file_name.endswith('.mp3'):
+too_short = []
+erronous = []
+count = 0
+with h5py.File(hdf5_path, 'w') as h5f:
+    with zipfile.ZipFile(file_path, 'r') as zip_ref:
+        mp3_files = [file_name for file_name in zip_ref.namelist() if file_name.endswith('.mp3')]
+        for idx, file_name in tqdm(enumerate(mp3_files), total=len(mp3_files), desc="Processing MP3 files"):
+            try:
                 with zip_ref.open(file_name) as mp3_file:
                     mono_signal = read_zipped_mp3(mp3_file)
+                    print("Signal: ", mono_signal.min(),mono_signal.max() )
                     #visualize_audio(mono_signal)
+                    if len(mono_signal) >= MIN_SAMPLE_LENGTH:
+                        mono_signal = mono_signal[:MIN_SAMPLE_LENGTH-1]
+                    else:
+                        too_short.append(file_name)
+                        continue
 
-                    # Calculate the spectrogram using scipy.signal.spectrogram
-                    '''f, t, Sxx = signal.spectrogram(
+                    f, t, Sxx = signal.spectrogram(
                         mono_signal, 
                         fs=SAMPLING_FREQ, 
-                        nperseg=256, 
-                        noverlap=128
+                        nperseg=512, 
+                        noverlap=256
                     )
-                    print("Shape of Sxx (spectrogram data):", Sxx.shape)
-                    visualize_spectrogram(Sxx)'''
+                    # Avoid zero for log scaling
+                    Sxx = np.where(Sxx == 0, 1e-30, Sxx)
+                    Sxx_db = 10 * np.log10(Sxx)
+                    print(type(Sxx_db[0][0]),Sxx_db[0].max() )
+                    #Sxx_db = Sxx_db.astype(np.float)
+                    #print(type(Sxx_db[0][0]),Sxx_db[0][:10] )
 
-                    
-                    data_length = len(mono_signal)
-                    if data_length < min_length:
-                        min_length = data_length
-                        print(min_length)
-        except Exception:
-            print(Exception)
+                    group = h5f.create_group(f'file_{idx}')
+                    group.create_dataset('spectrogram', data=Sxx_db)
+                    group.attrs['file_name'] = file_name
+
+                    #visualize_spectrogram(Sxx)
+                    if count == 1:
+                        break
+                    count += 1
+
+            except Exception as e:
+                erronous.append(file_name)
+                print("While trying to process: ", file_name)
+                print(e)
+                print("-" * 40)
