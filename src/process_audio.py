@@ -1,4 +1,7 @@
 import zipfile
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3, TCON
+import json
 import os
 from pydub import AudioSegment
 from io import BytesIO
@@ -19,6 +22,7 @@ MIN_SAMPLE_LENGTH = 1321967
 # Get the current working directory
 current_directory = os.getcwd()
 file_path = os.path.join(current_directory, '..', '..', 'data', 'fma_small.zip')
+genre_mapping_directory = os.path.join(current_directory, '..', '..', 'data', 'parent_mapping.json')
 extract_directory = os.path.join(current_directory, '..', '..', 'data')
 hdf5_path = os.path.join(extract_directory, 'spectrograms.h5')
 
@@ -62,9 +66,13 @@ def read_zipped_mp3(file):
     s1 = s1/max_value
 
     return s1
+# Genre mapping is needed for top-level genre labelling
+genre_mapping_file = open(genre_mapping_directory)
+genre_mapping = json.load(genre_mapping_file)
 
 too_short = []
 erronous = []
+genre_not_present = []
 count = 0
 with h5py.File(hdf5_path, 'w') as h5f:
     with zipfile.ZipFile(file_path, 'r') as zip_ref:
@@ -72,8 +80,15 @@ with h5py.File(hdf5_path, 'w') as h5f:
         for idx, file_name in tqdm(enumerate(mp3_files), total=len(mp3_files), desc="Processing MP3 files"):
             try:
                 with zip_ref.open(file_name) as mp3_file:
+                    # get genre info
+                    mp3 = MP3(mp3_file, ID3=ID3)
+                    id3 = mp3.tags
+                    child_genre = id3.get('TCON', 'Unknown Genre').text[0] if id3.get('TCON') else "NAN"
+
+                    # This will disregard tracks with genres that are not recognized
+                    genre = genre_mapping[child_genre]
+
                     mono_signal = read_zipped_mp3(mp3_file)
-                    print("Signal: ", mono_signal.min(),mono_signal.max() )
                     #visualize_audio(mono_signal)
                     if len(mono_signal) >= MIN_SAMPLE_LENGTH:
                         mono_signal = mono_signal[:MIN_SAMPLE_LENGTH-1]
@@ -90,21 +105,23 @@ with h5py.File(hdf5_path, 'w') as h5f:
                     # Avoid zero for log scaling
                     Sxx = np.where(Sxx == 0, 1e-30, Sxx)
                     Sxx_db = 10 * np.log10(Sxx)
-                    print(type(Sxx_db[0][0]),Sxx_db[0].max() )
                     #Sxx_db = Sxx_db.astype(np.float)
                     #print(type(Sxx_db[0][0]),Sxx_db[0][:10] )
 
                     group = h5f.create_group(f'file_{idx}')
                     group.create_dataset('spectrogram', data=Sxx_db)
                     group.attrs['file_name'] = file_name
+                    group.attrs['genre'] = genre
 
                     #visualize_spectrogram(Sxx)
-                    if count == 1:
+                    if count == 1000:
                         break
-                    count += 1
+                count += 1
 
             except Exception as e:
                 erronous.append(file_name)
                 print("While trying to process: ", file_name)
                 print(e)
                 print("-" * 40)
+
+print(set(genre_not_present))
