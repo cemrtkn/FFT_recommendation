@@ -8,8 +8,4 @@ spect_data = h5py.File(hdf5_path, 'r')
 genre_list = []
 for song in spect_data:
     song_data = spect_data.get(song)
-    print(song_data.attrs['genre_map'], song_data.attrs['genre'])
     genre_list.append(song_data.attrs['genre'])
-
-genre_set = set(genre_list)
-print(len(genre_set))

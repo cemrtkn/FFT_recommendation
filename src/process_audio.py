@@ -20,6 +20,8 @@ SAMPLING_FREQ = 44100
 FIGURE_WIDTH = 7 
 FIGURE_HEIGHT = 3.5  
 MIN_SAMPLE_LENGTH = 1321967
+# bit depth for 16 bit audio
+BIT_DEPTH = 32768.0
 
 # Get the current working directory
 current_directory = os.getcwd()
@@ -65,8 +67,7 @@ def read_zipped_mp3(file):
     s1 = mono_signal.get_array_of_samples()
 
     # Use max_value and normalize sound data to get values between -1 & +1
-    max_value = np.max(np.abs(s1))
-    s1 = s1/max_value
+    s1 = np.divide(s1, BIT_DEPTH)
 
     return s1
 
@@ -87,7 +88,6 @@ with h5py.File(hdf5_path, 'w') as h5f:
                     genre = genre_labels.iloc[idx]
 
                     mono_signal = read_zipped_mp3(mp3_file)
-                    #visualize_audio(mono_signal)
                     if len(mono_signal) >= MIN_SAMPLE_LENGTH:
                         mono_signal = mono_signal[:MIN_SAMPLE_LENGTH-1]
                     else:
@@ -103,15 +103,13 @@ with h5py.File(hdf5_path, 'w') as h5f:
                     # Avoid zero for log scaling
                     Sxx = np.where(Sxx == 0, 1e-30, Sxx)
                     Sxx_db = 10 * np.log10(Sxx)
-                    #Sxx_db = Sxx_db.astype(np.float)
-                    #print(type(Sxx_db[0][0]),Sxx_db[0][:10] )
+
 
                     group = h5f.create_group(f'file_{idx}')
                     group.create_dataset('spectrogram', data=Sxx_db)
                     group.attrs['file_name'] = file_name
                     group.attrs['genre'] = genre
 
-                    #visualize_spectrogram(Sxx)
                     if count == 2000:
                         break
                 count += 1
