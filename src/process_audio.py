@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from tqdm import tqdm
 import h5py
+import utils
+
 
 
 
@@ -22,9 +24,10 @@ MIN_SAMPLE_LENGTH = 1321967
 # Get the current working directory
 current_directory = os.getcwd()
 file_path = os.path.join(current_directory, '..', '..', 'data', 'fma_small.zip')
-genre_mapping_directory = os.path.join(current_directory, '..', '..', 'data', 'parent_mapping.json')
 extract_directory = os.path.join(current_directory, '..', '..', 'data')
 hdf5_path = os.path.join(extract_directory, 'spectrograms.h5')
+tracks_extract_directory = os.path.join(current_directory, '..', '..', 'data', 'tracks.csv')
+
 
 
 def visualize_audio(mono_signal):
@@ -66,9 +69,10 @@ def read_zipped_mp3(file):
     s1 = s1/max_value
 
     return s1
-# Genre mapping is needed for top-level genre labelling
-genre_mapping_file = open(genre_mapping_directory)
-genre_mapping = json.load(genre_mapping_file)
+
+tracks_metadata = utils.load(tracks_extract_directory)
+small_metadata = tracks_metadata[tracks_metadata['set', 'subset'] <= 'small']
+genre_labels = small_metadata[("track", "genre_top")]
 
 too_short = []
 erronous = []
@@ -80,13 +84,7 @@ with h5py.File(hdf5_path, 'w') as h5f:
         for idx, file_name in tqdm(enumerate(mp3_files), total=len(mp3_files), desc="Processing MP3 files"):
             try:
                 with zip_ref.open(file_name) as mp3_file:
-                    # get genre info
-                    mp3 = MP3(mp3_file, ID3=ID3)
-                    id3 = mp3.tags
-                    child_genre = id3.get('TCON', 'Unknown Genre').text[0] if id3.get('TCON') else "NAN"
-
-                    # This will disregard tracks with genres that are not recognized
-                    genre = genre_mapping[child_genre]
+                    genre = genre_labels.iloc[idx]
 
                     mono_signal = read_zipped_mp3(mp3_file)
                     #visualize_audio(mono_signal)
@@ -114,7 +112,7 @@ with h5py.File(hdf5_path, 'w') as h5f:
                     group.attrs['genre'] = genre
 
                     #visualize_spectrogram(Sxx)
-                    if count == 1000:
+                    if count == 2000:
                         break
                 count += 1
 
