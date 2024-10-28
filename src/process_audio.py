@@ -101,7 +101,8 @@ with h5py.File(hdf5_path, 'w') as h5f:
                         noverlap=256
                     )
                     # Avoid zero for log scaling
-                    Sxx = np.where(Sxx == 0, 1e-30, Sxx)
+                    # based on min value in the first 2000 songs ~ 1e-54
+                    Sxx = np.where(Sxx == 0, 1e-55, Sxx)
                     Sxx_db = 10 * np.log10(Sxx)
 
 
