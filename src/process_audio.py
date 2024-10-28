@@ -1,8 +1,6 @@
 import zipfile
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, TCON
-import json
-import os
 from pydub import AudioSegment
 from io import BytesIO
 import numpy as np
@@ -11,6 +9,7 @@ from scipy import signal
 from tqdm import tqdm
 import h5py
 import utils
+from config import *
 
 
 
@@ -22,13 +21,6 @@ FIGURE_HEIGHT = 3.5
 MIN_SAMPLE_LENGTH = 1321967
 # bit depth for 16 bit audio
 BIT_DEPTH = 32768.0
-
-# Get the current working directory
-current_directory = os.getcwd()
-file_path = os.path.join(current_directory, '..', '..', 'data', 'fma_small.zip')
-extract_directory = os.path.join(current_directory, '..', '..', 'data')
-hdf5_path = os.path.join(extract_directory, 'spectrograms.h5')
-tracks_extract_directory = os.path.join(current_directory, '..', '..', 'data', 'tracks.csv')
 
 
 

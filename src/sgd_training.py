@@ -1,5 +1,4 @@
 import h5py
-import os 
 import numpy as np
 from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import LabelEncoder
@@ -8,13 +7,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import ParameterGrid
 from preprocessing import *
 from dummy_classifiers import *
-
-current_directory = os.getcwd()
-extract_directory = os.path.join(current_directory, '..', '..', 'data')
-pca_path = os.path.join(extract_directory, 'pca_model.pkl')
-pca_path_alt = os.path.join(extract_directory, 'pca_model_alt.pkl')
-scaler_path = os.path.join(extract_directory, 'scaler_model.pkl')
-hdf5_path = os.path.join(extract_directory, 'spectrograms.h5')
+from config import *
 
 spect_data = h5py.File(hdf5_path, 'r')
 data_keys = np.array(list(spect_data.keys()))
@@ -71,6 +64,16 @@ y_val = label_encoder.transform(y_val)
 x_val = x_preprocessing.transform(x_val)
 
 
+majority_classifier = Majority_Classifier()
+majority_classifier.fit(y_total)
+accuracy = evaluate_model(majority_classifier, x_total, y_total, "training")
+accuracy = evaluate_model(majority_classifier, x_val, y_val, "validation")
+
+sampling_classifier = Sampling_Classifier()
+sampling_classifier.fit(y_total)
+accuracy = evaluate_model(sampling_classifier, x_total, y_total, "training")
+accuracy = evaluate_model(sampling_classifier, x_val, y_val, "validation")
+
 # Define hyperparameter grid
 param_grid = {
     'alpha': [50, 100, 1000, 10000],
@@ -79,25 +82,20 @@ param_grid = {
     'random_state': list(range(0,20))
 }
 
-majority_classifier = Majority_Classifier()
-majority_classifier.fit(y_total)
-accuracy = evaluate_model(majority_classifier, x_val, y_val, "validation")
-
-sampling_classifier = Sampling_Classifier()
-sampling_classifier.fit(y_total)
-accuracy = evaluate_model(sampling_classifier, x_val, y_val, "validation")
-
-'''grid = list(ParameterGrid(param_grid))
+grid = list(ParameterGrid(param_grid))
 best_score = 0
 best_params = None
 
 for params in grid:
     svm = SGDClassifier(**params)
     svm.fit(x_total, y_total)
-    #print('params:', params)
-    accuracy = evaluate_model(svm, x_val, y_val, "validation")
+    accuracy = evaluate_model(svm, x_val, y_val, "validation", False)
     if accuracy >= best_score:
         best_params = params
         best_score = accuracy
 
-print(best_params, best_score)'''
+print(best_params, best_score)
+svm = SGDClassifier(**best_params)
+svm.fit(x_total, y_total)
+accuracy = evaluate_model(svm, x_total, y_total, "training")
+accuracy = evaluate_model(svm, x_val, y_val, "validation")

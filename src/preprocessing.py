@@ -1,4 +1,3 @@
-import os 
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import IncrementalPCA
@@ -6,14 +5,6 @@ import joblib
 from sklearn.metrics import accuracy_score
 
 
-
-
-current_directory = os.getcwd()
-extract_directory = os.path.join(current_directory, '..', '..', 'data')
-pca_path = os.path.join(extract_directory, 'pca_model.pkl')
-pca_path_alt = os.path.join(extract_directory, 'pca_model_alt.pkl')
-scaler_path = os.path.join(extract_directory, 'scaler_model.pkl')
-hdf5_path = os.path.join(extract_directory, 'spectrograms.h5')
 
 
 def generate_train_test_indices(data_keys, test_size=0.2):
@@ -55,12 +46,13 @@ def batch_generator(data, keys, batch_size=150):
 
         yield x_batch, y_batch
 
-def evaluate_model(model, x, y, mode):
+def evaluate_model(model, x, y, mode, logging=True):
 
     y_pred = model.predict(x)
     accuracy = accuracy_score(y_pred, y)
-    print(f"{mode} accuracy after this batch: {accuracy:.2%}")
-    print('-' * 40)
+    if logging:
+        print(f"{mode} accuracy after this batch: {accuracy:.2%}")
+        print('-' * 40)
     return accuracy
 
 
