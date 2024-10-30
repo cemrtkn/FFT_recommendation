@@ -3,8 +3,21 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import IncrementalPCA
 import joblib
 from sklearn.metrics import accuracy_score
+from config import *
 
+def total_from_batches(spect_data, keys, x_preprocessing, label_encoder):
+    x_total = np.empty((0,100))
+    y_total = np.empty((0,))
 
+    for batch in batch_generator(spect_data,keys , 150):
+        x_batch, y_batch = batch
+
+        x_batch = x_preprocessing.transform(x_batch)
+        y_batch = label_encoder.transform(y_batch)
+
+        x_total = np.concatenate((x_total, x_batch), axis = 0)
+        y_total = np.concatenate((y_total, y_batch), axis = 0)
+    return x_total, y_total
 
 
 def generate_train_test_indices(data_keys, test_size=0.2):
@@ -75,7 +88,7 @@ def incremental_preprocessors(spect_data, train_val_keys, skip_scaler = True , n
     pca = IncrementalPCA(n_components=n_components)
 
     counter = 1
-    for batch in batch_generator(spect_data, train_val_keys, 50):
+    for batch in batch_generator(spect_data, train_val_keys, 100):
         x_batch, _ = batch
         x_batch = scaler.transform(x_batch)
         pca.partial_fit(x_batch)
