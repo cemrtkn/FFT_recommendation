@@ -2,7 +2,6 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import IncrementalPCA
 import joblib
-from sklearn.metrics import accuracy_score
 from config import *
 
 def total_from_batches(spect_data, keys, x_preprocessing, label_encoder):
@@ -58,15 +57,6 @@ def batch_generator(data, keys, batch_size=150):
         x_batch, y_batch = fetch_data(data, curr_batch_keys)
 
         yield x_batch, y_batch
-
-def evaluate_model(model, x, y, mode, logging=True):
-
-    y_pred = model.predict(x)
-    accuracy = accuracy_score(y_pred, y)
-    if logging:
-        print(f"{mode} accuracy after this batch: {accuracy:.2%}")
-        print('-' * 40)
-    return accuracy
 
 
 

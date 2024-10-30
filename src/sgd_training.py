@@ -1,50 +1,14 @@
 import h5py
 import numpy as np
-from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import LabelEncoder
 import joblib
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import ParameterGrid
 from preprocessing import *
 from dummy_classifiers import *
 from config import *
 from sklearn.metrics import ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
-
-
-def train_svm(x, y, params = None):
-
-    def hp_tuning(param_grid):
-        param_grid = {
-            'alpha': [50, 100, 1000, 10000],
-            'loss': ['hinge', 'log_loss'],
-            'max_iter': [100, 1000],
-            'random_state': list(range(0,20))
-        }
-        grid = list(ParameterGrid(param_grid))
-        best_score = 0
-        best_params = None
-
-        for params in grid:
-            svm = SGDClassifier(**params)
-            svm.fit(x, y)
-            accuracy = evaluate_model(svm, x_val, y_val, "validation", False)
-            if accuracy >= best_score:
-                best_params = params
-                best_score = accuracy
-
-        return best_params, best_score
-    
-    if params == None:
-        best_params, best_score = hp_tuning()
-        print("Achieved", best_score, "accuracy with params:",best_params)
-        svm = SGDClassifier(**best_params)
-    else:
-        svm = SGDClassifier(**params)
-
-    
-    svm.fit(x, y)
-    return svm
+from model_utils import *
 
 
 
@@ -87,21 +51,9 @@ x_val, y_val = total_from_batches(spect_data, val_keys, x_preprocessing, label_e
 x_test, y_test = total_from_batches(spect_data, test_keys, x_preprocessing, label_encoder)
 
 
-
-
-
 print(x_train.shape, y_train.shape)
 print(x_val.shape, y_val.shape)
 print(x_test.shape, y_test.shape)
-
-
-
-    
-
-'''x_val, y_val = fetch_data(spect_data, val_keys)
-
-y_val = label_encoder.transform(y_val)
-x_val = x_preprocessing.transform(x_val)'''
 
 
 majority_classifier = Majority_Classifier()
@@ -113,9 +65,20 @@ sampling_classifier = Sampling_Classifier()
 sampling_classifier.fit(y_train)
 accuracy = evaluate_model(sampling_classifier, x_train, y_train, "training")
 accuracy = evaluate_model(sampling_classifier, x_val, y_val, "validation")
+'''
+param_grid = {
+    'alpha': [50, 100, 1000, 10000],
+    'loss': ['hinge', 'log_loss'],
+    'max_iter': [100, 1000],
+    'random_state': list(range(0,20))
+}
+# tune and the fit
+svm = train_model(x_train, y_train, x_val, y_val, 'svm', param_grid = param_grid )
+'''
 
+# best params
 params = {'alpha': 1000, 'loss': 'log_loss', 'max_iter': 1000, 'random_state': 4}
-svm = train_svm(x_train, y_train,params = params )
+svm = train_model(x_train, y_train, 'svm',params = params )
 accuracy = evaluate_model(svm, x_train, y_train, "training")
 accuracy = evaluate_model(svm, x_val, y_val, "validation")
 
@@ -126,7 +89,7 @@ x_total = np.concatenate([x_train, x_val], axis = 0)
 y_total = np.concatenate([y_train, y_val], axis = 0)
 
 
-svm = train_svm(x_total, y_total,params = params )
+svm = train_model(x_total, y_total, 'svm',params = params )
 accuracy = evaluate_model(svm, x_total, y_total, "training")
 accuracy = evaluate_model(svm, x_test, y_test, "test")
 ConfusionMatrixDisplay.from_estimator(svm, x_test, y_test)
