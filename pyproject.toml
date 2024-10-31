@@ -6,7 +6,7 @@ authors = ["cemrtkn <cemrtkn@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.13"
+python = "^3.10"
 appnope = "^0.1.4"
 asttokens = "^2.4.1"
 certifi = "^2024.8.30"
@@ -64,7 +64,16 @@ tzdata = "^2024.2"
 urllib3 = "^2.2.3"
 wcwidth = "^0.2.13"
 xgboost = "1.7.1"
+torch = [
+    {url="https://download.pytorch.org/whl/cpu/torch-2.0.0-cp310-none-macosx_10_9_x86_64.whl", markers="platform_system == \"Darwin\" and platform_machine == \"x86_64\""},
+ ]
 
+
+
+[[tool.poetry.source]]
+name = "pytorch_cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
 
 [build-system]
 requires = ["poetry-core"]
