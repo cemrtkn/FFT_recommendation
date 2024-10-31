@@ -1,96 +1,98 @@
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import IncrementalPCA
 import joblib
-from config import *
+import h5py
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.decomposition import IncrementalPCA
+from sklearn.pipeline import Pipeline
+from config import scaler_path, pca_path_alt
 
-def total_from_batches(spect_data, keys, x_preprocessing, label_encoder):
-    x_total = np.empty((0,100))
-    y_total = np.empty((0,))
+class DataPreprocessor:
+    def __init__(self, data_path, n_components=100, batch_size=150):
+        self.data_path = data_path
+        self.scaler_path = scaler_path
+        self.pca_path = pca_path_alt
+        self.n_components = n_components
+        self.batch_size = batch_size
+        self.spect_data = h5py.File(data_path, 'r')
+        self.label_encoder = LabelEncoder()
+        self.pipeline = None  # To store the preprocessing pipeline after setup
 
-    for batch in batch_generator(spect_data,keys , 150):
-        x_batch, y_batch = batch
+    def fetch_data(self, keys):
+        x_batch = np.empty((len(keys), 1326634), dtype=np.float64)
+        y_batch = np.empty((len(keys),), dtype=object)
+        
+        for idx, key in enumerate(keys):
+            song = self.spect_data.get(key)
+            x_batch[idx] = np.array(song['spectrogram']).flatten().reshape(1, -1)
+            y_batch[idx] = str(song.attrs['genre'])
+        
+        return x_batch, y_batch
 
-        x_batch = x_preprocessing.transform(x_batch)
-        y_batch = label_encoder.transform(y_batch)
+    def batch_generator(self, keys):
+        n_samples = keys.size
+        for start_idx in range(0, n_samples, self.batch_size):
+            end_idx = min(start_idx + self.batch_size, n_samples)
+            yield self.fetch_data(keys[start_idx:end_idx])
 
-        x_total = np.concatenate((x_total, x_batch), axis = 0)
-        y_total = np.concatenate((y_total, y_batch), axis = 0)
-    return x_total, y_total
+    def total_from_batches(self, keys):
+        x_total, y_total = np.empty((0, self.n_components)), np.empty((0,))
+        
+        for x_batch, y_batch in self.batch_generator(keys):
+            x_batch = self.pipeline.transform(x_batch)
+            y_batch = self.label_encoder.transform(y_batch)
+            x_total = np.concatenate((x_total, x_batch), axis=0)
+            y_total = np.concatenate((y_total, y_batch), axis=0)
+        
+        return x_total, y_total
 
+    def generate_train_test_indices(self, data_keys, test_size=0.2):
+        np.random.seed(42)
+        n_samples = len(data_keys)
+        np.random.shuffle(data_keys)
+        split_idx = int(n_samples * (1 - test_size))
+        return data_keys[:split_idx], data_keys[split_idx:]
 
-def generate_train_test_indices(data_keys, test_size=0.2):
+    def incremental_preprocessors(self, train_keys, skip_scaler=True):
+        if not skip_scaler:
+            scaler = StandardScaler()
+            for x_batch, _ in self.batch_generator(train_keys):
+                scaler.partial_fit(x_batch)
+            joblib.dump(scaler, self.scaler_path)
+        else:
+            scaler = joblib.load(self.scaler_path)
 
-    np.random.seed(42)
+        pca = IncrementalPCA(n_components=self.n_components)
+        for x_batch, _ in self.batch_generator(train_keys):
+            x_batch = scaler.transform(x_batch)
+            pca.partial_fit(x_batch)
+        joblib.dump(pca, self.pca_path)
 
-    n_samples = len(data_keys)
-    np.random.shuffle(data_keys)
-    split_idx = int(n_samples * (1 - test_size))
+    def setup_pipeline(self):
+        scaler = joblib.load(self.scaler_path)
+        pca = joblib.load(self.pca_path)
+        self.pipeline = Pipeline(steps=[("scaler", scaler), ("pca", pca)])
 
-    train_keys = data_keys[:split_idx]
-    test_keys = data_keys[split_idx:]
+    def prepare_data(self):
+        data_keys = np.array(list(self.spect_data.keys()))
+        genres = [self.spect_data[key].attrs['genre'] for key in self.spect_data]
+        
+        unique_genre_labels = np.unique(genres)
+        self.label_encoder.fit(unique_genre_labels)
 
-    
-    
-    return train_keys, test_keys
+        train_val_keys, test_keys = self.generate_train_test_indices(data_keys)
+        train_keys, val_keys = self.generate_train_test_indices(train_val_keys, test_size=0.1)
 
-def fetch_data(data, keys):
-    
-    x_batch = np.empty((len(keys), 1326634), dtype=np.float64) 
-    y_batch = np.empty((len(keys),), dtype=object)
-    for idx, key in enumerate(keys):
+        self.setup_pipeline()
+        
+        x_train, y_train = self.total_from_batches(train_keys)
+        x_val, y_val = self.total_from_batches(val_keys)
+        x_test, y_test = self.total_from_batches(test_keys)
 
-        song = data.get(key)
-        new_x_element = np.array(song['spectrogram']).flatten().reshape(1, -1)
-        new_y_element = str(song.attrs['genre'])      
-
-        x_batch[idx] = new_x_element
-        y_batch[idx] = new_y_element
-    return x_batch, y_batch
-
-def batch_generator(data, keys, batch_size=150):
-    n_samples = keys.size
-    for start_idx in range(0, n_samples, batch_size):
-        end_idx = min(start_idx + batch_size, n_samples)
-        curr_batch_keys = keys[start_idx:end_idx]
-
-        x_batch, y_batch = fetch_data(data, curr_batch_keys)
-
-        yield x_batch, y_batch
-
-
-
-def incremental_preprocessors(spect_data, train_val_keys, skip_scaler = True , n_components = 30):
-    if not skip_scaler:
-        scaler = StandardScaler()
-
-        counter = 1
-        for batch in batch_generator(spect_data, train_val_keys):
-            x_batch, _ = batch
-            scaler.partial_fit(x_batch)
-            print("batch no.", counter, "was done for the scaler")
-            counter += 1
-
-        joblib.dump(scaler, scaler_path)
-    else:
-        scaler = joblib.load(scaler_path)
-
-    pca = IncrementalPCA(n_components=n_components)
-
-    counter = 1
-    for batch in batch_generator(spect_data, train_val_keys, 100):
-        x_batch, _ = batch
-        x_batch = scaler.transform(x_batch)
-        pca.partial_fit(x_batch)
-        print("batch no.", counter, "was done for pca")
-        counter += 1
-
-    joblib.dump(pca, pca_path_alt)
-
-
-
-
-
-
-
-   
+        return {
+            "x_train": x_train,
+            "y_train": y_train,
+            "x_val": x_val,
+            "y_val": y_val,
+            "x_test": x_test,
+            "y_test": y_test,
+        }

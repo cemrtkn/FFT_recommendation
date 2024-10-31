@@ -2,6 +2,9 @@ from sklearn.model_selection import ParameterGrid
 from xgboost import XGBClassifier
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+
 
 
 def train_model(x_train, y_train, model_name, x_val = None, y_val = None, param_grid = None, params = None):
@@ -43,3 +46,7 @@ def evaluate_model(model, x, y, mode, logging=True):
         print(f"{mode} accuracy after this batch: {accuracy:.2%}")
         print('-' * 40)
     return accuracy
+
+def conf_matrix(model, x, y):
+    ConfusionMatrixDisplay.from_estimator(model, x, y)
+    plt.show()
