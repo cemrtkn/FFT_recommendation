@@ -4,18 +4,24 @@ import h5py
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.decomposition import IncrementalPCA
 from sklearn.pipeline import Pipeline
-from config import scaler_path, pca_path_alt
+from config import scaler_path, pca_path_alt, all_pprocessed_data_directory
+from numpy import savetxt, loadtxt
+
 
 class DataPreprocessor:
-    def __init__(self, data_path, n_components=100, batch_size=150):
+    def __init__(self, data_path, test_size = 0.2, val_size = 0.1 ,n_components=100, batch_size=150):
         self.data_path = data_path
         self.scaler_path = scaler_path
         self.pca_path = pca_path_alt
         self.n_components = n_components
         self.batch_size = batch_size
         self.spect_data = h5py.File(data_path, 'r')
+        self.n_samples = len(list(self.spect_data.keys()))
         self.label_encoder = LabelEncoder()
+        self.test_size = test_size
+        self.val_size = val_size
         self.pipeline = None  # To store the preprocessing pipeline after setup
+        self.all_pprocessed_data_path = all_pprocessed_data_directory
 
     def fetch_data(self, keys):
         x_batch = np.empty((len(keys), 1326634), dtype=np.float64)
@@ -45,11 +51,17 @@ class DataPreprocessor:
         
         return x_total, y_total
 
-    def generate_train_test_indices(self, data_keys, test_size=0.2):
+    def generate_train_test_indices(self, data_keys, split_mode ,test_size=0.2):
         np.random.seed(42)
         n_samples = len(data_keys)
         np.random.shuffle(data_keys)
         split_idx = int(n_samples * (1 - test_size))
+
+        if split_mode == 'train-test':
+            self.train_test_idx = split_idx
+        elif split_mode == 'train-val':
+            self.train_val_idx = split_idx
+        
         return data_keys[:split_idx], data_keys[split_idx:]
 
     def incremental_preprocessors(self, train_keys, skip_scaler=True):
@@ -79,14 +91,22 @@ class DataPreprocessor:
         unique_genre_labels = np.unique(genres)
         self.label_encoder.fit(unique_genre_labels)
 
-        train_val_keys, test_keys = self.generate_train_test_indices(data_keys)
-        train_keys, val_keys = self.generate_train_test_indices(train_val_keys, test_size=0.1)
+        train_val_keys, test_keys = self.generate_train_test_indices(data_keys, 'train-test')
+        train_keys, val_keys = self.generate_train_test_indices(train_val_keys, 'train-val',test_size=0.1)
 
         self.setup_pipeline()
         
         x_train, y_train = self.total_from_batches(train_keys)
         x_val, y_val = self.total_from_batches(val_keys)
         x_test, y_test = self.total_from_batches(test_keys)
+
+        all_pprocessed_x = np.concatenate([x_train, x_val, x_test], axis = 0)
+        all_pprocessed_y = np.concatenate([y_train, y_val, y_test], axis = 0)
+        all_pprocessed_data = np.concatenate([all_pprocessed_x, all_pprocessed_y[:, np.newaxis]], axis=1)
+
+
+        savetxt(self.all_pprocessed_data_path, all_pprocessed_data, delimiter=',')
+        #savetxt(self.all_pprocessed_y_path, all_pprocessed_y, delimiter=',')
 
         return {
             "x_train": x_train,
@@ -96,3 +116,22 @@ class DataPreprocessor:
             "x_test": x_test,
             "y_test": y_test,
         }
+    def load_pprocessed_data(self):
+        all_pprocessed_data = loadtxt(self.all_pprocessed_data_path, delimiter=',')
+
+        all_pprocessed_x = all_pprocessed_data[:,:self.n_components]
+        all_pprocessed_y = all_pprocessed_data[:,-1]
+
+        train_test_split_idx = int(self.n_samples * (1 - self.test_size))
+        train_val_split_idx = int(train_test_split_idx * (1 - self.val_size))
+
+        return {
+            "x_train": all_pprocessed_x[:train_val_split_idx],
+            "y_train": all_pprocessed_y[:train_val_split_idx],
+            "x_val": all_pprocessed_x[train_val_split_idx:train_test_split_idx],
+            "y_val": all_pprocessed_y[train_val_split_idx:train_test_split_idx],
+            "x_test": all_pprocessed_x[train_test_split_idx:],
+            "y_test": all_pprocessed_y[train_test_split_idx:],
+        }
+
+
