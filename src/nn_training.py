@@ -1,14 +1,21 @@
 import numpy as np
-from config import hdf5_path
+from config import hdf5_path, scaler_path_aug, pca_path_aug, all_pprocessed_data_directory_aug
 from preprocessing import DataPreprocessor
 from model_utils import *
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
+# TO:DO grid search to find good architecture, dropout p ,num epochs, batch size, lr
 
-data_preprocessor = DataPreprocessor(hdf5_path)
-#data_splits = data_preprocessor.prepare_data()
+paths = {
+        'data_path': hdf5_path,
+        'scaler_path':scaler_path_aug,
+        'pca_path':pca_path_aug,
+        'all_pprocessed_data_path':all_pprocessed_data_directory_aug,
+    }
+
+data_preprocessor = DataPreprocessor(paths,crop_augment_fold = 3)
 data_splits = data_preprocessor.load_pprocessed_data()
 
 x_train, y_train, x_val, y_val, x_test, y_test = data_splits['x_train'], data_splits['y_train'], data_splits['x_val'], data_splits['y_val'], data_splits['x_test'], data_splits['y_test']
@@ -17,10 +24,13 @@ print(x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_te
 
 
 model = nn.Sequential(
-    nn.Linear(100, 512),
-    nn.Dropout(p=0.2),
+    nn.Linear(100, 1028),
+    nn.Dropout(p=0.4),
     nn.ReLU(),
-    nn.Linear(512, 8),
+    nn.Linear(1028, 256),
+    nn.Dropout(p=0.4),
+    nn.ReLU(),
+    nn.Linear(256, 8),
 )
 print(sum(p.numel() for p in model.parameters() if p.requires_grad))
 
