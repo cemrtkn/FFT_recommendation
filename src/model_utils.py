@@ -1,4 +1,4 @@
-from sklearn.model_selection import ParameterGrid
+from sklearn.model_selection import ParameterGrid, GridSearchCV
 from xgboost import XGBClassifier
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score
@@ -7,13 +7,13 @@ import matplotlib.pyplot as plt
 
 
 
-def train_model(x_train, y_train, model_name, x_val = None, y_val = None, param_grid = None, params = None):
+def train_model(x_train, y_train, model_name, folds=None ,x_val = None, y_val = None, param_grid = None, params = None):
     model_map = {
         "xgb": XGBClassifier,
         "svm": SGDClassifier,
     }
 
-    def hp_tuning(param_grid):
+    def hp_tuning_loo(param_grid):
         grid = list(ParameterGrid(param_grid))
         best_score = 0
         best_params = None
@@ -28,8 +28,18 @@ def train_model(x_train, y_train, model_name, x_val = None, y_val = None, param_
 
         return best_params, best_score
     
+    def hp_tuning_kfold(param_grid, cv = 10):
+        model = model_map[model_name]()
+        grid_search = GridSearchCV(model, param_grid, scoring='accuracy' , cv=cv)
+        grid_search.fit(x_train, y_train)
+
+        return grid_search.best_params_, grid_search.best_score_
+    
     if params == None:
-        best_params, best_score = hp_tuning(param_grid)
+        if x_val == None:
+            best_params, best_score = hp_tuning_kfold(param_grid, cv=folds)
+        else:
+            best_params, best_score = hp_tuning_loo(param_grid)
         print("Achieved", best_score, "accuracy with params:",best_params)
         model = model_map[model_name](**best_params)
     else:

@@ -5,6 +5,8 @@ from model_utils import *
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torchinfo import summary
+
 
 # TO:DO grid search to find good architecture, dropout p ,num epochs, batch size, lr
 
@@ -24,52 +26,44 @@ print(x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_te
 
 
 model = nn.Sequential(
-    nn.Linear(100, 1028),
+    nn.Linear(100, 1024),
     nn.Dropout(p=0.4),
     nn.ReLU(),
-    nn.Linear(1028, 256),
+    nn.Linear(1024, 256),
     nn.Dropout(p=0.4),
     nn.ReLU(),
     nn.Linear(256, 8),
 )
 print(sum(p.numel() for p in model.parameters() if p.requires_grad))
 
-# Set device for training (use GPU if available)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
-# Define loss function and optimizer
 criterion = nn.CrossEntropyLoss()  # Use CrossEntropyLoss for multi-class classification
 optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
-# Convert numpy arrays to PyTorch tensors
 x_train_tensor = torch.tensor(x_train, dtype=torch.float32).to(device)
 y_train_tensor = torch.tensor(y_train, dtype=torch.long).to(device)
 x_val_tensor = torch.tensor(x_val, dtype=torch.float32).to(device)
 y_val_tensor = torch.tensor(y_val, dtype=torch.long).to(device)
 
 # Training parameters
-num_epochs = 300
+num_epochs = 200
 batch_size = 64
 
-# Training loop
 for epoch in range(num_epochs):
     model.train()
-    # Shuffle the training data
     permutation = torch.randperm(x_train_tensor.size(0))
 
     for i in range(0, x_train_tensor.size(0), batch_size):
         indices = permutation[i:i + batch_size]
         batch_x, batch_y = x_train_tensor[indices], y_train_tensor[indices]
 
-        # Zero the parameter gradients
         optimizer.zero_grad()
 
-        # Forward pass
         outputs = model(batch_x)
         loss = criterion(outputs, batch_y)
 
-        # Backward pass and optimization
         loss.backward()
         optimizer.step()
 
@@ -82,3 +76,9 @@ for epoch in range(num_epochs):
         val_accuracy = (val_preds == y_val_tensor).float().mean().item()
 
     print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}, Val Accuracy: {val_accuracy:.4f}')
+
+summary(model)  
+
+
+
+

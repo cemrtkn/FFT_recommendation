@@ -7,6 +7,8 @@ from sklearn.pipeline import Pipeline
 from config import scaler_path, pca_path_alt, all_pprocessed_data_directory, hdf5_path, pca_path_aug, scaler_path_aug, all_pprocessed_data_directory_aug
 from numpy import savetxt, loadtxt
 
+# TO:DO don't split data before crop augmentation
+np.random.seed(42)
 
 class DataPreprocessor:
     def __init__(self, paths, crop_augment_fold, test_size = 0.2, val_size = 0.1 ,n_components=100, batch_size=120):
@@ -70,7 +72,6 @@ class DataPreprocessor:
         return x_total, y_total
 
     def generate_train_test_indices(self, data_keys, split_mode ,test_size=0.2):
-        np.random.seed(42)
         n_samples = len(data_keys)
         np.random.shuffle(data_keys)
         split_idx = int(n_samples * (1 - test_size))
@@ -107,10 +108,16 @@ class DataPreprocessor:
             
         joblib.dump(pca, self.pca_path)
         print("Trained pca and saved at", self.pca_path)
+    
     def setup_pipeline(self):
         scaler = joblib.load(self.scaler_path)
         pca = joblib.load(self.pca_path)
         self.pipeline = Pipeline(steps=[("scaler", scaler), ("pca", pca)])
+    
+    def unison_shuffled_copies(self,x, y):
+        assert len(x) == len(y)
+        p = np.random.permutation(len(x))
+        return x[p], y[p]
 
     def prepare_data(self, augmentation = False, retrain_pprocessors = False):
         data_keys = np.array(list(self.spect_data.keys()))
@@ -133,6 +140,12 @@ class DataPreprocessor:
         x_val, y_val = self.total_from_batches(val_keys, augmentation=augmentation)
         x_test, y_test = self.total_from_batches(test_keys, augmentation=augmentation)
         print(x_train.shape, y_train.shape)
+
+        # shuffle after crop augmentation
+        if augmentation:
+            x_train, y_train = self.unison_shuffled_copies(x_train, y_train)
+            x_val, y_val = self.unison_shuffled_copies(x_val, y_val)
+            x_test, y_test = self.unison_shuffled_copies(x_test, y_test)
 
         all_pprocessed_x = np.concatenate([x_train, x_val, x_test], axis = 0)
         all_pprocessed_y = np.concatenate([y_train, y_val, y_test], axis = 0)
@@ -185,3 +198,7 @@ if __name__ == "__main__":
 
     x_train, y_train, x_val, y_val, x_test, y_test = data_splits['x_train'], data_splits['y_train'], data_splits['x_val'], data_splits['y_val'], data_splits['x_test'], data_splits['y_test']
     print(x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
+
+
+
+

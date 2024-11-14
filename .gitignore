@@ -218,11 +218,6 @@ venv/
 
 *.icloud
 #data
-src/Illumulus_RAG_Component/illumulus-stories-buchmesse-2024/
-src/evaluation/data/
-src/evaluation/qrels/qrels.dl21-doc-msmarco-v2.1.txt
-src/evaluation/qrels/qrels.dl23-doc-msmarco-v2.1.txt
-src/evaluation/qrels/qrels.msmarco-v2.1-doc.dev2.txt
-src/evaluation/qrels/qrels.dl22-doc-msmarco-v2.1.txt
-src/evaluation/qrels/qrels.msmarco-v2.1-doc.dev.txt
-src/evaluation/topics/topics.dl21.txt
+./src/lightning_logs/
+./src/saved_models/
+./src/.py_tmp/

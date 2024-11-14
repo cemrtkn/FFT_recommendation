@@ -67,6 +67,9 @@ xgboost = "1.7.1"
 torch = [
     {url="https://download.pytorch.org/whl/cpu/torch-2.0.0-cp310-none-macosx_10_9_x86_64.whl", markers="platform_system == \"Darwin\" and platform_machine == \"x86_64\""},
  ]
+skorch = "^1.0.0"
+pytorch-tabular = "^1.1.0"
+torchinfo = "^1.8.0"
 
 
 
