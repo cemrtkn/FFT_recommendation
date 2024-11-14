@@ -4,18 +4,12 @@ import warnings
 import pandas as pd
 import numpy as np
 from rich import print
-from rich.pretty import pprint
-from sklearn.model_selection import train_test_split
-from pytorch_tabular import TabularModel
 from pytorch_tabular.models import (
     CategoryEmbeddingModelConfig,
 )
-from pytorch_tabular.config import DataConfig, OptimizerConfig, TrainerConfig, ExperimentConfig
+from pytorch_tabular.config import DataConfig, OptimizerConfig, TrainerConfig
 from pytorch_tabular.models.common.heads import LinearHeadConfig
 from pytorch_tabular.tabular_model_tuner import TabularModelTuner
-
-from torchinfo import summary
-
 
 
 def np_to_pd(x,y):
