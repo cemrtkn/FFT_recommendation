@@ -7,10 +7,22 @@ import torch.nn as nn
 import torch.optim as optim
 from torchinfo import summary
 from skorch import NeuralNetClassifier
-from sklearn.model_selection import GridSearchCV, PredefinedSplit
+from sklearn.model_selection import GridSearchCV
+from skorch.helper import predefined_split
+from skorch.callbacks import EarlyStopping
+from skorch.dataset import Dataset
+from sklearn.model_selection import PredefinedSplit
+from sklearn.metrics import accuracy_score
 
 
-
+def custom_scorer(estimator, X, y):
+    y_pred = estimator.predict(X)
+    
+    accuracy = accuracy_score(y, y_pred)
+    
+    y_pred_prob = estimator.predict_proba(X)
+    validation_loss = torch.nn.CrossEntropyLoss()(y_pred_prob, y)
+    return {'accuracy': accuracy, 'validation_loss': validation_loss.item()}
 
 paths = {
         'data_path': hdf5_path,
@@ -26,20 +38,24 @@ x_train, y_train, x_val, y_val, x_test, y_test = data_splits['x_train'], data_sp
 
 print(x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
 
-# merge splits and get predefined split for gridsearchcv
-split_index = [-1] * len(x_train) + [0] * len(x_val)
-predefined_split = PredefinedSplit(test_fold=split_index)
-
-x_train = np.concatenate([x_train, x_val], axis = 0)
-y_train = np.concatenate([y_train, y_val], axis = 0)
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
 
 x_train_tensor = torch.tensor(x_train, dtype=torch.float32).to(device)
 y_train_tensor = torch.tensor(y_train, dtype=torch.long).to(device)
 
+x_val_tensor = torch.tensor(x_val, dtype=torch.float32).to(device)
+y_val_tensor = torch.tensor(y_val, dtype=torch.long).to(device)
+valid_dataset = Dataset(x_val_tensor, y_val_tensor)
+
+
+# Combine train and validation data for GridSearchCV compatibility
+x_combined = np.concatenate([x_train, x_val], axis=0)
+y_combined = np.concatenate([y_train, y_val], axis=0)
+x_combined_tensor = torch.tensor(x_combined, dtype=torch.float32).to(device)
+y_combined_tensor = torch.tensor(y_combined, dtype=torch.long).to(device)
+
+split_index = [-1] * len(x_train) + [0] * len(x_val)
+predefined_split_grid_search = PredefinedSplit(test_fold=split_index)
 
 class Network(nn.Module):
     def __init__(self, X, y, dims="1024-256", dropout_rate = 0.4 ,nonlin=nn.ReLU()):
@@ -66,7 +82,6 @@ class Network(nn.Module):
 
         self.layers = nn.Sequential(*layers)
         self.output = nn.Linear(dim_list[-2], dim_list[-1])
-        summary(self)
 
     def forward(self, X, **kwargs):
         X = self.layers(X)  # Pass through all layers
@@ -83,18 +98,20 @@ net = NeuralNetClassifier(
     criterion=torch.nn.CrossEntropyLoss,
     optimizer=optim.Adam,
     batch_size=64,
+    callbacks=[('early_stopping', EarlyStopping(monitor='valid_loss', lower_is_better=True))],  
+    verbose=0,
+    train_split=predefined_split(valid_dataset),
 )
-
-net.set_params(train_split=False, verbose=0)
 params = {
-    'lr': [0.0001, 0.00007 ,0.00005],
-    'max_epochs': [200, 300],
-    'module__dims': ["1024-256", "2048-512"],
+    'module__dims': ["1024-256", "1024-512-256", "2048-1024-512"],
+    'module__dropout_rate': [0.2, 0.3, 0.4],
+    'lr': [0.0001, 0.00007],
+    'callbacks__early_stopping__patience': [5, 10, 15],
 }
 
-gs = GridSearchCV(net, params, refit=False, cv=predefined_split, scoring='accuracy', verbose=3)
+gs = GridSearchCV(net, params, refit=False, cv=predefined_split_grid_search, scoring=custom_scorer, verbose=3)
 
-gs.fit(x_train_tensor, y_train_tensor)
+gs.fit(x_combined_tensor, y_combined_tensor)
 print("best score: {:.3f}, best params: {}".format(gs.best_score_, gs.best_params_))
 
 # Best parameters and score
