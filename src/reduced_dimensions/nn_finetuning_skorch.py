@@ -13,7 +13,7 @@ from sklearn.model_selection import PredefinedSplit
 from sklearn.metrics import accuracy_score, make_scorer
 from skorch.callbacks import EarlyStopping, Checkpoint, LRScheduler
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from customizable_network import Network
+from customizable_network import FCNetwork
 
 
 def custom_scorer(y, y_pred):
@@ -87,7 +87,7 @@ split_index = [-1] * len(x_train) + [0] * len(x_val)
 predefined_split_grid_search = PredefinedSplit(test_fold=split_index)
 
 net = NeuralNetClassifier(
-    Network,
+    FCNetwork,
     module__X=x_train_tensor, # for input dimensions
     module__y=y_train_tensor, # for output dimensions
     max_epochs=200,

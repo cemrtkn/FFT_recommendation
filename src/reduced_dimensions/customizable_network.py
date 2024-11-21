@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-class Network(nn.Module):
+class FCNetwork(nn.Module):
     def __init__(self, X, y, dims="1024-256", dropout_rate = 0.4 ,nonlin=nn.ReLU()):
         super().__init__()
 
