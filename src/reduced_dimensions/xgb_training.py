@@ -1,5 +1,5 @@
 import numpy as np
-from config import hdf5_path, scaler_path, pca_path_alt, all_pprocessed_data_directory ,scaler_path_aug, pca_path_aug, all_pprocessed_data_directory_aug
+from ..config import hdf5_path, scaler_path, pca_path_alt, all_pprocessed_data_directory ,scaler_path_aug, pca_path_aug, all_pprocessed_data_directory_aug
 from preprocessing import DataPreprocessor
 from model_utils import *
 
