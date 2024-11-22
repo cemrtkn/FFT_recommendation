@@ -72,6 +72,7 @@ skorch = "^1.0.0"
 pytorch-tabular = "^1.1.0"
 torchinfo = "^1.8.0"
 pytorch-lightning = "2.1"
+librosa = "^0.10.2.post1"
 
 
 

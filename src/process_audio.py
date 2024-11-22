@@ -15,6 +15,7 @@ from config import *
 
 
 
+
 SAMPLING_FREQ = 44100
 FIGURE_WIDTH = 7 
 FIGURE_HEIGHT = 3.5  

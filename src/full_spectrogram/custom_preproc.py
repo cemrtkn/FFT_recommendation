@@ -81,3 +81,40 @@ class LogTransformer(BaseEstimator, TransformerMixin):
             else:
                 print(f"Skipping parameter {param}: not applicable for {self.__class__.__name__}")
         return self
+    
+
+class Clipper(BaseEstimator, TransformerMixin):
+    def __init__(self, percentile_threshold=0.05):
+        self.percentile_threshold = percentile_threshold
+    
+    def fit(self, X=None, y=None):
+        # No fitting required for log transformation, so we just return self
+        return self
+    
+    def partial_fit(self,X):
+        new_min = torch.min(X).item()
+
+        # Update min and scale using a simple running min/max approach
+        if self.shift_value is None:
+            self.shift_value = new_min
+        else:
+            self.shift_value = np.minimum(self.shift_value, new_min)
+
+        return self
+    
+    
+    def transform(self, X):
+        # shift value(min) is negative
+        X_shifted = X - self.shift_value
+        X_transformed = np.log(X_shifted + self.epsilon)
+        return X_transformed
+
+    
+    def set_params(self, **params):
+        for param, value in params.items():
+            if hasattr(self, param):  # Only set attributes that exist in the instance
+                print(param, value)
+                setattr(self, param, value)
+            else:
+                print(f"Skipping parameter {param}: not applicable for {self.__class__.__name__}")
+        return self
