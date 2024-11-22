@@ -1,19 +1,23 @@
 import numpy as np
 import h5py
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from config import hdf5_path
+from config import hdf5_path, spec_minmax_scaler_path
 import torch
 from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
 import joblib
-
+from custom_preproc import MinMaxScaler, LogTransformer
 
 
 # TO:DO don't split data before crop augmentation
 np.random.seed(42)
 
+scalers = {
+    "normalizer": MinMaxScaler(),
+    "log_transformer": LogTransformer(),
+}
+
 class SpectLoader:
-    def __init__(self, paths, test_size = 0.2, val_size = 0.1, batch_size=16):
+    def __init__(self, paths, test_size = 0.2, val_size = 0.1, batch_size=64):
         self.data_path = paths['data_path']
         self.scaler_path = paths['scaler_path']
 
@@ -26,11 +30,11 @@ class SpectLoader:
         self.test_size = test_size
         self.val_size = (1-test_size)*val_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.train_keys = None
-
         self.pipeline = None
+        self.train_keys = None
+        self.max_db = None
+        self.min_db = None
 
-        self.spect_data
     
     def split_data(self,):
         n_samples = len(self.data_keys)
@@ -46,8 +50,7 @@ class SpectLoader:
 
         return train_keys, val_keys, test_keys
 
-    def fetch_data(self, batch_keys):
-        assert self.pipeline != None
+    def fetch_data(self, batch_keys, fitting_scaler=False):
         x_batch = np.empty((len(batch_keys), self.n_freq, self.n_time), dtype=np.float32)
         y_batch = np.empty((len(batch_keys),), dtype=object)
         
@@ -56,56 +59,78 @@ class SpectLoader:
             x_batch[idx] = np.array(song['spectrogram'])
             y_batch[idx] = song.attrs['genre']
         
-        y_batch = self.pipeline['target_encoder'].transform(y_batch)
+        if not fitting_scaler:
+            x_batch = self.pipeline['scaler'].transform(x_batch)
+            y_batch = self.pipeline['target_encoder'].transform(y_batch)
+        else:
+            y_batch = np.empty((len(batch_keys),), dtype=np.int32)
 
         # Convert x_batch to torch tensor and add channel dimension
         x_batch = torch.tensor(x_batch, dtype=torch.float32, device=self.device).unsqueeze(1)  # Add channel dimension
         y_batch = torch.tensor(y_batch, dtype=torch.long, device=self.device)
         return x_batch, y_batch
 
-    def batch_generator(self, split_keys):
+    def batch_generator(self, split_keys, fitting_scaler = False):
         split_size = len(split_keys)
         for start_idx in range(0, split_size, self.batch_size):
             end_idx = min(start_idx + self.batch_size, split_size)
-            yield self.fetch_data(split_keys[start_idx:end_idx])
+            yield self.fetch_data(split_keys[start_idx:end_idx], fitting_scaler=fitting_scaler)
     
-    def setup_pipeline(self, load_model=True):
-        self.pipeline = Pipeline([
-                ("scaler", StandardScaler()),
-            ("target_encoder", LabelEncoder()),
-        ])
+    def setup_pipeline(self, scaler_type = "normalizer" ,load_model=True):
+        scaler = scalers[scaler_type]
+
         genres = [self.spect_data[key].attrs['genre'] for key in self.spect_data]
         unique_genre_labels = np.unique(genres)
-        self.pipeline['target_encoder'].fit(unique_genre_labels)
+        label_encoder = LabelEncoder()
+        label_encoder.fit(unique_genre_labels)
 
         if load_model:
-            self.pipeline['scaler'] = joblib.load(self.scaler_path)
-        else: # incremental train scaler
+            custom_scaler = joblib.load(self.scaler_path)
+            print(custom_scaler.__dict__)
+            scaler.set_params(**custom_scaler.__dict__)
+        else: 
             counter = 0
-            for x_batch, _ in self.batch_generator(self.train_keys):
-                print(torch.max(x_batch), torch.min(x_batch))
-                self.pipeline['scaler'].partial_fit(x_batch)
+            # incrementally train scaler
+            for x_batch, _ in self.batch_generator(self.train_keys, fitting_scaler=True):
+                scaler.partial_fit(x_batch)
                 print("Iteration no:", counter, "is over.")
                 counter += 1
-            joblib.dump(self.pipeline['scaler'], self.scaler_path)
+            joblib.dump(scaler, self.scaler_path)
+        
+        self.pipeline = Pipeline([
+                ("scaler", scaler),
+            ("target_encoder", label_encoder),
+        ])
     
+    def set_min_max(self):
+        max = 0
+        min = 0
+        for x_batch, _ in self.batch_generator(self.train_keys):
+            batch_max = torch.max(x_batch).item()
+            batch_min = torch.min(x_batch).item()
+            if batch_max > max:
+                max = batch_max
+            if batch_min < min:
+                min = batch_min
+        
+        self.max_db = max
+        self.min_db = min
+
+    def normalize(self):
+        assert self.max_db is not None
+
+        
 
 
 
 
 if __name__ == "__main__":
     paths = {
-        "data_path": hdf5_path
+        "data_path": hdf5_path,
+        "scaler_path": spec_scaler_path
     }
-    pprocessor = SpectLoader(paths, input_shape=(1, 257, 5162))
-    pprocessor.setup_pipeline()
+    pprocessor = SpectLoader(paths)
     train_keys, val_keys, test_keys = pprocessor.split_data()
-
-
-    for x_batch, y_batch in pprocessor.batch_generator(train_keys):
-            
-        print(len(x_batch), len(y_batch))
-        print(x_batch[0].shape)
-        counter += 1
-        break
+    pprocessor.setup_pipeline(scaler_type="log_transformer",load_model=False)
+    
 
