@@ -9,11 +9,8 @@ from scipy import signal
 from tqdm import tqdm
 import h5py
 import utils
-from config import *
-
-
-
-
+from config import hdf5_path, dataset_path, tracks_metadata_path
+import librosa
 
 
 SAMPLING_FREQ = 44100
@@ -26,7 +23,6 @@ BIT_DEPTH = 32768.0
 
 
 def visualize_audio(mono_signal):
-    # Get time domain representation of the sound pressure waves
     timeArray = np.arange(0, mono_signal.shape[0], 1.0)
     timeArray = timeArray / SAMPLING_FREQ  # Second
     timeArray = timeArray * 1000  # Scale to milliseconds
@@ -41,14 +37,18 @@ def visualize_audio(mono_signal):
     plt.tight_layout()
     plt.show()
 
-def visualize_spectrogram(Sxx):
-    # Convert to decibels
-    Sxx_log = 10 * np.log10(Sxx)
-    plt.figure(figsize=(FIGURE_WIDTH, FIGURE_HEIGHT))
-    plt.pcolormesh(t, f, Sxx_log, shading='gouraud', cmap='viridis')
-    plt.ylabel('Frequency [Hz]')
-    plt.xlabel('Time [s]')
-    plt.colorbar(label='Power/Frequency (dB/Hz)')
+def plot_log_mel_spectrogram(log_mel, sampling_freq, hop_length, title="Log-Mel Spectrogram"):
+    time_axis = np.arange(log_mel.shape[1]) * hop_length / sampling_freq
+    mel_bins = np.arange(log_mel.shape[0])
+    
+    plt.figure(figsize=(10, 4))
+    plt.imshow(log_mel, aspect='auto', origin='lower', interpolation='none', cmap='magma',
+               extent=[time_axis[0], time_axis[-1], mel_bins[0], mel_bins[-1]])
+    plt.colorbar(label='Log-Mel Power (dB)')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Mel Frequency Bins')
+    plt.title(title)
+    plt.tight_layout()
     plt.show()
 
 
@@ -63,17 +63,37 @@ def read_zipped_mp3(file):
     s1 = np.divide(s1, BIT_DEPTH)
 
     return s1
+def audio_to_spect(mono_signal,n_fft=2048 ,mel=True):
+    spect_db = None
+    hop_length = int(n_fft/4)
 
-tracks_metadata = utils.load(tracks_extract_directory)
+    stft = np.abs(librosa.stft(mono_signal, n_fft=2048, hop_length=hop_length))
+    if mel:
+        # taking it to the power of 2 makes all the difference!!!
+        mel = librosa.feature.melspectrogram(sr=SAMPLING_FREQ, S=stft**2)
+        spect_db = librosa.amplitude_to_db(mel)
+        #plot_log_mel_spectrogram(spect_db, SAMPLING_FREQ, hop_length=512, title="Log-Mel Spectrogram")
+    else:
+        # Avoid zero for log scaling
+        # based on min value in the first 2000 songs ~ 1e-54
+        stft = np.where(stft == 0, 1e-55, stft)
+        spect_db = 10 * np.log10(stft**2)
+        #plot_log_mel_spectrogram(spect_db, SAMPLING_FREQ, hop_length=512, title="Log-Mel Spectrogram")
+    return spect_db
+    
+
+
+tracks_metadata = utils.load(tracks_metadata_path)
 small_metadata = tracks_metadata[tracks_metadata['set', 'subset'] <= 'small']
 genre_labels = small_metadata[("track", "genre_top")]
+
 
 too_short = []
 erronous = []
 genre_not_present = []
 count = 0
 with h5py.File(hdf5_path, 'w') as h5f:
-    with zipfile.ZipFile(file_path, 'r') as zip_ref:
+    with zipfile.ZipFile(dataset_path, 'r') as zip_ref:
         mp3_files = [file_name for file_name in zip_ref.namelist() if file_name.endswith('.mp3')]
         for idx, file_name in tqdm(enumerate(mp3_files), total=len(mp3_files), desc="Processing MP3 files"):
             try:
@@ -87,20 +107,10 @@ with h5py.File(hdf5_path, 'w') as h5f:
                         too_short.append(file_name)
                         continue
 
-                    f, t, Sxx = signal.spectrogram(
-                        mono_signal, 
-                        fs=SAMPLING_FREQ, 
-                        nperseg=512, 
-                        noverlap=256
-                    )
-                    # Avoid zero for log scaling
-                    # based on min value in the first 2000 songs ~ 1e-54
-                    Sxx = np.where(Sxx == 0, 1e-55, Sxx)
-                    Sxx_db = 10 * np.log10(Sxx)
-
+                    spect_db = audio_to_spect(mono_signal, mel=True)
 
                     group = h5f.create_group(f'file_{idx}')
-                    group.create_dataset('spectrogram', data=Sxx_db)
+                    group.create_dataset('spectrogram', data=spect_db)
                     group.attrs['file_name'] = file_name
                     group.attrs['genre'] = genre
 

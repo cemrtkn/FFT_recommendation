@@ -6,6 +6,7 @@ import torch
 from sklearn.pipeline import Pipeline
 import joblib
 from custom_preproc import MinMaxScaler, LogTransformer, Clipper
+import random
 
 # The bin containing 5% of the data is between -154.0 and -143.0
 
@@ -32,7 +33,7 @@ class SpectLoader:
         self.val_size = (1-test_size)*val_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.clip_percentile = clip_percentile
-        self.clip_threshold = -154.0
+        self.clip_threshold = -170.0
         self.clipper = None
         self.pipeline = None
         self.train_keys = None
@@ -62,6 +63,7 @@ class SpectLoader:
             song = self.spect_data.get(key)
             # clip to avoid outliers
             x_batch[idx] = np.clip(song['spectrogram'], a_min=self.clip_threshold, a_max=None)
+            x_batch[idx] = np.array(song['spectrogram'])
             y_batch[idx] = song.attrs['genre']
         
         if not fitting_pprocessor: # scale x and label encode
@@ -76,10 +78,17 @@ class SpectLoader:
         y_batch = torch.tensor(y_batch, dtype=torch.long, device=self.device)
         return x_batch, y_batch
 
-    def batch_generator(self, split_keys, fitting_pprocessor = False):
+    def batch_generator(self, split_keys, batch_size = None, fitting_pprocessor = False):
         split_size = len(split_keys)
-        for start_idx in range(0, split_size, self.batch_size):
-            end_idx = min(start_idx + self.batch_size, split_size)
+        if batch_size == None: # default batch_size 
+            batch_size = self.batch_size
+        elif batch_size == -1: # get all data (valid-test)
+            batch_size = split_size
+        # will add regularization by not showing the same batches
+        # especially with batchnorm
+        split_keys = random.shuffle(split_keys)
+        for start_idx in range(0, split_size, batch_size):
+            end_idx = min(start_idx + batch_size, split_size)
             yield self.fetch_data(split_keys[start_idx:end_idx], fitting_pprocessor=fitting_pprocessor)
     
     def setup_pipeline(self, scaler_type = "normalizer" ,load_model=True):
@@ -116,6 +125,8 @@ class SpectLoader:
         
         self.max_db = max
         self.min_db = min
+        print(self.min_db)
+        print(self.max_db)
     def fit_label_encoder(self):
         genres = [self.spect_data[key].attrs['genre'] for key in self.spect_data]
         unique_genre_labels = np.unique(genres)

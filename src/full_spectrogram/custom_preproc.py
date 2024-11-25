@@ -4,7 +4,7 @@ import numpy as np
 
 
 class MinMaxScaler(BaseEstimator, TransformerMixin):
-    def __init__(self, feature_range=(0, 1)):
+    def __init__(self, feature_range=(-1, 1)):
         self.feature_range = feature_range
         self.min_ = None
         self.scale_ = None
@@ -39,6 +39,7 @@ class MinMaxScaler(BaseEstimator, TransformerMixin):
         for param, value in params.items():
             if hasattr(self, param):  # Only set attributes that exist in the instance
                 setattr(self, param, value)
+                print(param)
             else:
                 print(f"Skipping parameter {param}: not applicable for {self.__class__.__name__}")
         return self
