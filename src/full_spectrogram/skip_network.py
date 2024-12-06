@@ -31,7 +31,7 @@ class ResidualBlock(nn.Module):
     
 
 class SkipNetwork(nn.Module):
-    def __init__(self, block, channels, input_shape):
+    def __init__(self, channels, input_shape, block=ResidualBlock):
         super(SkipNetwork, self).__init__()
         
         self.channels = channels
@@ -42,8 +42,8 @@ class SkipNetwork(nn.Module):
             self.conv_layers.append(conv_layer)
                 
         self.outconv = nn.Sequential(
-            nn.Conv2d(in_channels=channels[-1], out_channels=512, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm2d(512),
+            nn.Conv2d(in_channels=channels[-1], out_channels=256, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm2d(256),
             nn.ReLU()
         )
         self._to_linear = self._calculate_flatten_size(input_shape)
