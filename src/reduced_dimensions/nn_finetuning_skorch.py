@@ -59,7 +59,7 @@ paths = {
         'all_pprocessed_data_path':all_pprocessed_data_directory_aug,
     }
 
-data_preprocessor = DataPreprocessor(paths,crop_augment_fold = 3)
+data_preprocessor = DataPreprocessor(paths,crop_augment_fold = 1)
 data_splits = data_preprocessor.load_pprocessed_data()
 
 x_train, y_train, x_val, y_val, x_test, y_test = data_splits['x_train'], data_splits['y_train'], data_splits['x_val'], data_splits['y_val'], data_splits['x_test'], data_splits['y_test']
@@ -113,9 +113,10 @@ net = NeuralNetClassifier(
 }"""
 
 # best out of gridsearch
-params = {'callbacks__early_stopping__patience': [10], 'lr': [0.0001], 'module__dims': ['1024-512-256'], 'module__dropout_rate': [0.3], 'callbacks__lr_scheduler__patience': [6]}
+params = {'callbacks__early_stopping__patience': [10], 'callbacks__lr_scheduler__patience': [8], 'module__dims': ['1024-256'], 'module__dropout_rate': [0.4]}
 
-gs = GridSearchCV(net, params, refit=True, cv=predefined_split_grid_search, scoring=acc_val_loss_scorer, verbose=3)
+
+gs = GridSearchCV(net, params, refit=True, cv=predefined_split_grid_search, scoring=acc_val_loss_scorer, verbose=3, error_score="raise")
 
 gs.fit(x_combined_tensor, y_combined_tensor)
 print("best score: {:.3f}, best params: {}".format(gs.best_score_, gs.best_params_))

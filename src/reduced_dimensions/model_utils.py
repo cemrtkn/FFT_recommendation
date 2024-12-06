@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 
-def train_model(x_train, y_train, model_name, folds=None ,x_val = None, y_val = None, param_grid = None, params = None):
+def train_model(x_train, y_train, model_name ,x_val = None, y_val = None,folds=None, param_grid = None, params = None):
     model_map = {
         "xgb": XGBClassifier,
         "svm": SGDClassifier,
@@ -36,7 +36,7 @@ def train_model(x_train, y_train, model_name, folds=None ,x_val = None, y_val = 
         return grid_search.best_params_, grid_search.best_score_
     
     if params == None:
-        if x_val == None:
+        if x_val.all() == None:
             best_params, best_score = hp_tuning_kfold(param_grid, cv=folds)
         else:
             best_params, best_score = hp_tuning_loo(param_grid)
@@ -49,7 +49,7 @@ def train_model(x_train, y_train, model_name, folds=None ,x_val = None, y_val = 
     return model
 
 def evaluate_model(model, x, y, mode, logging=True):
-
+    
     y_pred = model.predict(x)
     accuracy = accuracy_score(y_pred, y)
     if logging:

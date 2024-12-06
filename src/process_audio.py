@@ -9,7 +9,7 @@ from scipy import signal
 from tqdm import tqdm
 import h5py
 import utils
-from config import hdf5_path, dataset_path, tracks_metadata_path
+from config import hdf5_path, dataset_path, tracks_metadata_path, hdf5_path_toy
 import librosa
 
 
@@ -63,23 +63,26 @@ def read_zipped_mp3(file):
     s1 = np.divide(s1, BIT_DEPTH)
 
     return s1
-def audio_to_spect(mono_signal,n_fft=2048 ,mel=True):
+def audio_to_spect(mono_signal,n_fft=2048, n_mels = 256 ,mel=True, visualize=False):
     spect_db = None
     hop_length = int(n_fft/4)
 
-    stft = np.abs(librosa.stft(mono_signal, n_fft=2048, hop_length=hop_length))
+    stft = np.abs(librosa.stft(mono_signal, n_fft=n_fft, hop_length=hop_length))
     if mel:
         # taking it to the power of 2 makes all the difference!!!
-        mel = librosa.feature.melspectrogram(sr=SAMPLING_FREQ, S=stft**2)
+        mel = librosa.feature.melspectrogram(sr=SAMPLING_FREQ, S=stft**2, n_mels=n_mels)
         spect_db = librosa.amplitude_to_db(mel)
-        #plot_log_mel_spectrogram(spect_db, SAMPLING_FREQ, hop_length=512, title="Log-Mel Spectrogram")
+        
     else:
         # Avoid zero for log scaling
         # based on min value in the first 2000 songs ~ 1e-54
         stft = np.where(stft == 0, 1e-55, stft)
         spect_db = 10 * np.log10(stft**2)
-        #plot_log_mel_spectrogram(spect_db, SAMPLING_FREQ, hop_length=512, title="Log-Mel Spectrogram")
+    if visualize:
+        plot_log_mel_spectrogram(spect_db, SAMPLING_FREQ, hop_length=hop_length, title="Spectrogram")
     return spect_db
+def fix_size(spectrogram, n_time_bins=512):
+    return spectrogram[:,:512]
     
 
 
@@ -107,15 +110,15 @@ with h5py.File(hdf5_path, 'w') as h5f:
                         too_short.append(file_name)
                         continue
 
-                    spect_db = audio_to_spect(mono_signal, mel=True)
+                    spect_db = audio_to_spect(mono_signal,n_fft=8192 ,n_mels=256 ,mel=True, visualize=False)
 
                     group = h5f.create_group(f'file_{idx}')
                     group.create_dataset('spectrogram', data=spect_db)
                     group.attrs['file_name'] = file_name
                     group.attrs['genre'] = genre
 
-                    if count == 2000:
-                        break
+                    """if count == 100:
+                        break"""
                 count += 1
 
             except Exception as e:

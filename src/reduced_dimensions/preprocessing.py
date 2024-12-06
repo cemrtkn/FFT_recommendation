@@ -4,7 +4,7 @@ import h5py
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.decomposition import IncrementalPCA
 from sklearn.pipeline import Pipeline
-from config import scaler_path, pca_path_alt, all_pprocessed_data_directory, hdf5_path, pca_path_aug, scaler_path_aug, all_pprocessed_data_directory_aug
+from config import hdf5_path, pca_path_aug, scaler_path_aug, all_pprocessed_data_directory_aug
 from numpy import savetxt, loadtxt
 
 # TO:DO don't split data before crop augmentation
@@ -192,9 +192,9 @@ if __name__ == "__main__":
         'all_pprocessed_data_path':all_pprocessed_data_directory_aug,
     }
     # decrease batch size to prevent memory overload while training pca
-    data_preprocessor = DataPreprocessor(paths, crop_augment_fold = 3 ,batch_size=60)
+    data_preprocessor = DataPreprocessor(paths, crop_augment_fold = 3 ,batch_size=120)
 
-    data_splits = data_preprocessor.prepare_data(augmentation=True, retrain_pprocessors=True)
+    data_splits = data_preprocessor.prepare_data(augmentation=False, retrain_pprocessors=True)
 
     x_train, y_train, x_val, y_val, x_test, y_test = data_splits['x_train'], data_splits['y_train'], data_splits['x_val'], data_splits['y_val'], data_splits['x_test'], data_splits['y_test']
     print(x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
