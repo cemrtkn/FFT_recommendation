@@ -1,6 +1,4 @@
 import zipfile
-from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, TCON
 from pydub import AudioSegment
 from io import BytesIO
 import numpy as np
@@ -9,7 +7,7 @@ from scipy import signal
 from tqdm import tqdm
 import h5py
 import utils
-from config import hdf5_path, dataset_path, tracks_metadata_path, hdf5_path_toy
+from config import hdf5_path, dataset_path, dataset_path_mine ,tracks_metadata_path, hdf5_path_toy
 import librosa
 
 
@@ -86,9 +84,9 @@ def fix_size(spectrogram, n_time_bins=512):
     
 
 
-tracks_metadata = utils.load(tracks_metadata_path)
-small_metadata = tracks_metadata[tracks_metadata['set', 'subset'] <= 'small']
-genre_labels = small_metadata[("track", "genre_top")]
+#tracks_metadata = utils.load(tracks_metadata_path)
+#small_metadata = tracks_metadata[tracks_metadata['set', 'subset'] <= 'small']
+#genre_labels = small_metadata[("track", "genre_top")]
 
 
 too_short = []
@@ -96,12 +94,13 @@ erronous = []
 genre_not_present = []
 count = 0
 with h5py.File(hdf5_path, 'w') as h5f:
-    with zipfile.ZipFile(dataset_path, 'r') as zip_ref:
+    with zipfile.ZipFile(dataset_path_mine, 'r') as zip_ref:
         mp3_files = [file_name for file_name in zip_ref.namelist() if file_name.endswith('.mp3')]
         for idx, file_name in tqdm(enumerate(mp3_files), total=len(mp3_files), desc="Processing MP3 files"):
             try:
                 with zip_ref.open(file_name) as mp3_file:
-                    genre = genre_labels.iloc[idx]
+                    #genre = genre_labels.iloc[idx]
+                    genre = 
 
                     mono_signal = read_zipped_mp3(mp3_file)
                     if len(mono_signal) >= MIN_SAMPLE_LENGTH:
@@ -115,7 +114,7 @@ with h5py.File(hdf5_path, 'w') as h5f:
                     group = h5f.create_group(f'file_{idx}')
                     group.create_dataset('spectrogram', data=spect_db)
                     group.attrs['file_name'] = file_name
-                    group.attrs['genre'] = genre
+                    #group.attrs['genre'] = genre
 
                     """if count == 100:
                         break"""

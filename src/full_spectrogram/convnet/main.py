@@ -1,12 +1,14 @@
-from config import hdf5_path, spec_minmax_scaler_path, spec_log_transformer_path
-from data_loader import SpectLoader
 from model import ConvNetwork
 import torch
 from torch import nn, optim
 import matplotlib.pyplot as plt
 import numpy as np
-import librosa
 import torch.nn.functional as F
+import sys, os
+sys.path.insert(0, os.path.pardir)
+from data_loader import SpectLoader
+from config import hdf5_path, spec_minmax_scaler_path, spec_log_transformer_path
+
 
 
 
